@@ -1,0 +1,83 @@
+name: release-authorize
+
+# Shared trust-boundary primitive for portfolio release workflows. Callers keep
+# their own build, SBOM, registry, and post-publication jobs; this workflow owns
+# only the invariant authorization step and returns immutable identifiers.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Existing signed stable SemVer tag (vX.Y.Z)"
+        required: true
+        type: string
+      allowed-signers-path:
+        description: "Caller-repository SSH allowed-signers file"
+        required: false
+        type: string
+        default: ".github/allowed_signers"
+    outputs:
+      release-commit:
+        description: "Commit selected by the verified tag"
+        value: ${{ jobs.authorize.outputs.release-commit }}
+      release-tag:
+        description: "Canonical verified stable SemVer tag"
+        value: ${{ jobs.authorize.outputs.release-tag }}
+      tag-object-sha:
+        description: "Immutable annotated-tag object identifier"
+        value: ${{ jobs.authorize.outputs.tag-object-sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release-commit: ${{ steps.tag.outputs.commit }}
+      release-tag: ${{ steps.tag.outputs.tag }}
+      tag-object-sha: ${{ steps.tag.outputs.tag_object_sha }}
+    steps:
+      - name: Check out the caller's trusted main branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve and verify the reviewed signed tag
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          ALLOWED_SIGNERS_PATH: ${{ inputs.allowed-signers-path }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG}"
+
+          test "${GITHUB_REF}" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse origin/main)" = "${GITHUB_SHA}"
+          if [[ ! "${TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Release tag '${TAG}' must be stable SemVer (vX.Y.Z)."
+            exit 1
+          fi
+
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          if [ "$(git cat-file -t "refs/tags/${TAG}")" != tag ]; then
+            echo "::error::Release tag '${TAG}' must be an annotated tag object."
+            exit 1
+          fi
+
+          RELEASE_COMMIT="$(git rev-parse --verify "${TAG}^{commit}")"
+          git merge-base --is-ancestor "${RELEASE_COMMIT}" origin/main
+          test -f "${ALLOWED_SIGNERS_PATH}"
+          git config gpg.format ssh
+          git config gpg.ssh.allowedSignersFile "${GITHUB_WORKSPACE}/${ALLOWED_SIGNERS_PATH}"
+          git verify-tag -- "${TAG}"
+
+          {
+            echo "tag=${TAG}"
+            echo "commit=${RELEASE_COMMIT}"
+            echo "tag_object_sha=$(git rev-parse "refs/tags/${TAG}")"
+          } >> "${GITHUB_OUTPUT}"
