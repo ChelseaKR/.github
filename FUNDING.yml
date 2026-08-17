@@ -1,1 +1,10 @@
+# Org-wide default funding links.
+#
+# GitHub applies this to every ChelseaKR repository that does not carry its own
+# .github/FUNDING.yml. A repo with its own file overrides this one entirely
+# rather than merging with it, so a per-repo file must repeat every rail it
+# wants shown.
+#
+# Add a rail here only once that account exists and can actually receive money.
+github: ChelseaKR
 ko_fi: T6T6GMYTU
