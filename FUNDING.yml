@@ -5,6 +5,11 @@
 # rather than merging with it, so a per-repo file must repeat every rail it
 # wants shown.
 #
+# Ko-fi only, on purpose. Ko-fi asks a reader to tip a person for unpaid work;
+# GitHub Sponsors asks a funder to fund a project. Those are different asks and
+# a single default cannot tell the inheriting repos apart, so GitHub Sponsors is
+# declared per repo instead, only where a support page exists to explain what
+# the money does and what it cannot buy.
+#
 # Add a rail here only once that account exists and can actually receive money.
-github: ChelseaKR
 ko_fi: T6T6GMYTU
