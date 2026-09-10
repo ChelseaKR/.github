@@ -45,6 +45,11 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # The tag has to arrive with this checkout, because the checkout is the
+          # only step here that is authenticated. A later `git fetch` runs against
+          # an origin with no credentials: a public caller is served anonymously,
+          # a private one is asked for a username and the job dies.
+          fetch-tags: true
           persist-credentials: false
 
       - name: Resolve and verify the reviewed signed tag
@@ -64,7 +69,11 @@ jobs:
             exit 1
           fi
 
-          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Release tag '${TAG}' was not fetched with the checkout." \
+                 "Push the tag before dispatching the release."
+            exit 1
+          fi
           if [ "$(git cat-file -t "refs/tags/${TAG}")" != tag ]; then
             echo "::error::Release tag '${TAG}' must be an annotated tag object."
             exit 1
